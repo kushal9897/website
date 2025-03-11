@@ -59,3 +59,56 @@ In Kyverno's admission controller deployment, users can configure the cache usin
 `imageVerifyCacheTTLDuration`: Maximum TTL value for a cache expressed as duration. Default is `60m`. `0` sets the value to default.
 
 The cache is enabled by default and significantly helps with execution time of verify image policies by making not accessing remote repository on every verification attempt. It should be noted that any change to the image/signature in the remote repository will not be reflected till the cache entry expires.
+
+
+## Using the Improved Image Verification Feature
+
+Kyverno now includes an enhanced image verification process that automatically validates container images during resource admission. This feature improves accuracy and security by ensuring that images are correctly parsed, optionally mutated to include immutable digests, and verified against trusted attestors.
+
+### How It Works
+
+When a resource (such as a Pod) is created or updated, Kyverno performs the following steps:
+
+1. **Accurate Image Parsing:**  
+   Kyverno uses an improved parser to correctly extract all parts of an image reference (e.g., name, tag, and digest). This ensures that the image data is complete and accurate.
+
+2. **Optional Image Mutation:**  
+   If the `mutateDigest` option is enabled (default is `true`), Kyverno automatically converts image tags into immutable digests. This ensures that once an image is verified, its reference cannot change unexpectedly.
+
+3. **Signature Verification:**  
+   The `verifyImages` rule checks each image against one or more attestors (for example, using a public key from Sigstore Cosign) to verify the image's signature. This confirms that the image is from a trusted source.
+
+4. **Policy Enforcement:**  
+   If an image fails verification—because it is unsigned, has an incorrect signature, or does not include a digest (when required)—Kyverno will reject the resource and return an error message.
+
+### Creating a VerifyImages Policy
+
+To use the improved image verification, create a Kyverno policy with a rule of type `verifyImages`. Below is an example policy:
+
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-container-images
+spec:
+  rules:
+  - name: check-images
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+    verifyImages:
+      imageReferences:
+      - "*"                     # Apply verification to all images
+      required: true            # Enforce that images must be verified
+      mutateDigest: true        # Automatically convert image tags to immutable digests
+      verifyDigest: true        # Require that the verified image includes a digest
+
+### Expected Result
+
+- **If the image passes verification:**  
+  The Pod will be created successfully, and you will see a confirmation message from Kubernetes.
+
+- **If the image fails verification:**  
+  Kyverno will reject the Pod creation. The error message will indicate that the image did not meet the verification criteria (for example, if the image is unsigned or its signature does not match any trusted attestors).
