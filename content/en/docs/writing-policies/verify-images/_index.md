@@ -105,6 +105,8 @@ spec:
       mutateDigest: true        # Automatically convert image tags to immutable digests
       verifyDigest: true        # Require that the verified image includes a digest
 
+```
+
 ### Expected Result
 
 - **If the image passes verification:**  
